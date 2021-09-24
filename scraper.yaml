@@ -1,0 +1,12 @@
+default_community: public
+devices:
+  - hostname: testhost01
+    ip: 127.0.0.1
+    community: public
+    username:
+    password:
+influxdb:
+  uri: testinflux
+  username: testuser
+  password: tollespw
+
