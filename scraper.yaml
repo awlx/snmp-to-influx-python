@@ -9,4 +9,3 @@ influxdb:
   uri: testinflux
   username: testuser
   password: tollespw
-

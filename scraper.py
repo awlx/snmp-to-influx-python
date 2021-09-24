@@ -24,6 +24,7 @@ class ConfigFileNotFoundError(Error):
 SNMP_TO_INFLUX_CONFIG_OS_ENV = "SNMP_TO_INFLUX_CONFIG_FILE"
 SNMP_TO_INFLUX_CONFIG_DEFAULT_LOCATION = "./scraper.yaml"
 
+
 @dataclasses.dataclass
 class Device:
     """A representation of a Device in Configuration file.
@@ -49,6 +50,7 @@ class Device:
             ip=device_cfg["ip"],
         )
 
+
 @dataclasses.dataclass
 class Devices:
     """A representation of the configuration file.
@@ -71,10 +73,7 @@ class Devices:
         devices = []
         for entry in cfg:
             devices.append(Device.from_dict(entry))
-        return cls(
-            devices=devices
-        )
-
+        return cls(devices=devices)
 
 
 @dataclasses.dataclass
@@ -128,6 +127,7 @@ class Config:
             influxdb=influxdb_cfg,
         )
 
+
 @lru_cache(maxsize=10)
 def fetch_from_config(key: str) -> Optional[Union[Dict[str, Any], List[str]]]:
     """Fetches a specific key from configuration.
@@ -165,7 +165,9 @@ def fetch_config_from_disk() -> str:
     Returns:
         The file contents as string.
     """
-    config_file = os.environ.get(SNMP_TO_INFLUX_CONFIG_OS_ENV, SNMP_TO_INFLUX_CONFIG_DEFAULT_LOCATION)
+    config_file = os.environ.get(
+        SNMP_TO_INFLUX_CONFIG_OS_ENV, SNMP_TO_INFLUX_CONFIG_DEFAULT_LOCATION
+    )
     try:
         with open(config_file, "r") as stream:
             return stream.read()
@@ -173,6 +175,7 @@ def fetch_config_from_disk() -> str:
         raise ConfigFileNotFoundError(
             f"Could not locate configuration file in {config_file}"
         ) from e
+
 
 DeviceList = Config.from_dict(load_config()).devices
 influxdb_cfg = Config.from_dict(load_config()).influxdb
@@ -215,21 +218,21 @@ def pollDevice(session, hostname):
     IFstats = {}
     hostData = {"Host": hostname}
     try:
-        for item in session.walk(oids=u"1.3.6.1.2.1.31.1.1.1.10"):
+        for item in session.walk(oids="1.3.6.1.2.1.31.1.1.1.10"):
             outDict[item.oid_index] = {"Out": item.value}
     except:
         return {"Host": hostname, "Error": "ERROR - SNMP error"}
 
-    for item in session.walk(oids=u"1.3.6.1.2.1.31.1.1.1.6"):
+    for item in session.walk(oids="1.3.6.1.2.1.31.1.1.1.6"):
         inDict[item.oid_index] = {"In": item.value}
 
-    for item in session.walk(oids=u"1.3.6.1.2.1.2.2.1.14"):
+    for item in session.walk(oids="1.3.6.1.2.1.2.2.1.14"):
         inErrDict[item.oid_index] = {"inError": item.value}
 
-    for item in session.walk(oids=u"1.3.6.1.2.1.2.2.1.20"):
+    for item in session.walk(oids="1.3.6.1.2.1.2.2.1.20"):
         outErrDict[item.oid_index] = {"outError": item.value}
 
-    for item in session.walk(oids=u"1.3.6.1.2.1.2.2.1.2"):
+    for item in session.walk(oids="1.3.6.1.2.1.2.2.1.2"):
         nameDict[item.oid_index] = {"Interface": item.value}
 
     for index in outDict.keys():
@@ -266,7 +269,9 @@ def pollDevice(session, hostname):
             DeviceIP, iface, IFOut, IFIn, IFinError, IFoutError
         )
         dbres = requests.post(
-            influxdb_cfg.uri, data=dbpayload, auth=HTTPBasicAuth(influxdb_cfg.username, influxdb_cfg.password)
+            influxdb_cfg.uri,
+            data=dbpayload,
+            auth=HTTPBasicAuth(influxdb_cfg.username, influxdb_cfg.password),
         )
 
     return hostData
