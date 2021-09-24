@@ -55,9 +55,7 @@ class Device:
 class Devices:
     """A representation of the configuration file.
     Attributes:
-        irr: The IRR this config is valid for.
-        e_mail: E-Mail address to use.
-        mnt_by: Maintainer object to use.
+        devices: List of all devices
     """
 
     devices: List[Device]
