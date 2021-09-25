@@ -206,7 +206,7 @@ def SNMPpollv3(Device):
 
 _ifXEntry = "1.3.6.1.2.1.31.1.1.1"
 _ifHCInOctets = "6"
-_ifHCOutOctets = "7"
+_ifHCOutOctets = "10"
 _ifName = "1"
 
 _ifTable = "1.3.6.1.2.1.2.2.1"
