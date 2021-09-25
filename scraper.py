@@ -2,14 +2,15 @@
 import datetime
 import yaml
 import dataclasses
-import requests
+from influxdb import InfluxDBClient
+from influxdb import SeriesHelper
 import os
 import sys
 import math
 from multiprocessing import Pool
 from functools import lru_cache
 from easysnmp import Session
-from requests.auth import HTTPBasicAuth
+from requests.auth import HTTPDigestAuth
 from typing import Dict, Union, Any, List, Optional
 from ipaddress import IPv4Network, IPv6Network
 
@@ -87,6 +88,7 @@ class Influxdb:
     uri: str
     username: str
     password: str
+    database: str
 
     @classmethod
     def from_dict(cls, influxdb_cfg: Dict[str, str]) -> "Influxdb":
@@ -94,6 +96,7 @@ class Influxdb:
             uri=influxdb_cfg["uri"],
             username=influxdb_cfg["username"],
             password=influxdb_cfg["password"],
+            database=influxdb_cfg["database"],
         )
 
 
@@ -235,23 +238,46 @@ def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
             if interface.oid_index
             else interface.oid.split(".")[-1]
         }
+
     for oid_name, oid in _OIDS.items():
         for name, _ in interfaces.items():
             snmp_info = session.get(f"{oid}.{interfaces[name]['oid_index']}")
             interfaces[name].update({oid_name: snmp_info.value})
 
-    dbpayload = (
-        f"my_poll_data,hostname={DeviceIP},ifname={iface} ifout={IFOut},ifin={IFIn},"
-        "ifinerr={IFinError},ifouterr={IFoutError}"
-    )
-    print(dbpayload)
-    dbres = requests.post(
-        influxdb_cfg.uri,
-        data=dbpayload,
-        auth=HTTPBasicAuth(influxdb_cfg.username, influxdb_cfg.password),
-    )
-    print(dbres)
-    return 0
+    for name, values in interfaces.items():
+        dbpayload = [
+            {
+                "measurement": "interface_stats",
+                "tags": {
+                    "host": hostname,
+                    "interface": name,
+                    "interface_description": values["_ifDescr"],
+                },
+                "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "fields": {
+                    "ifout": int(values["_ifHCInOctets"]),
+                    "ifin": int(values["_ifHCOutOctets"]),
+                    "ifinerr": int(values["_ifInErrors"]),
+                    "ifouterr": int(values["_ifOutErrors"]),
+                },
+            }
+        ]
+
+        client = InfluxDBClient(
+            influxdb_cfg.uri,
+            443,
+            influxdb_cfg.username,
+            influxdb_cfg.password,
+            influxdb_cfg.database,
+            ssl=True,
+        )
+        print(dbpayload)
+        try:
+            client.write_points(dbpayload)
+        except Exception as e:
+            print(e)
+
+    return client.write_points(dbpayload)
 
 
 def StartPoll(device):
