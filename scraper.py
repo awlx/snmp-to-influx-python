@@ -1,19 +1,18 @@
 #!/usr/bin/python3
-import datetime
-import yaml
 import dataclasses
-import time
-from influxdb import InfluxDBClient
-from influxdb import SeriesHelper
+import datetime
 import os
 import sys
-import math
 import threading
-from functools import lru_cache
-from easysnmp import Session
-from requests.auth import HTTPDigestAuth
-from typing import Dict, Union, Any, List, Optional
+import time
+
 from ipaddress import IPv4Network, IPv6Network
+from functools import lru_cache
+from typing import Dict, Union, Any, List, Optional
+from easysnmp import Session
+from influxdb import InfluxDBClient
+
+import yaml
 
 
 class Error(Exception):
@@ -180,10 +179,6 @@ def fetch_config_from_disk() -> str:
         ) from e
 
 
-# To convert readings in MBits
-_TO_MBIT = math.pow(10, 6)
-
-
 def SNMPpollv2(Device):
     try:
         session = Session(hostname=Device.ip, community=Device.community, version=2)
@@ -287,16 +282,17 @@ def StartPoll(device):
     else:
         return "Invalid device entity"
 
+
 def main():
-    """Starts the periodic scraper .
-    """
+    """Starts the periodic scraper ."""
     DeviceList = Config.from_dict(load_config()).devices
-    
+
     while True:
         for device in DeviceList.devices:
             thread = threading.Thread(target=StartPoll, args=(device,))
             thread.start()
         time.sleep(60)
+
 
 if __name__ == "__main__":
     main()
