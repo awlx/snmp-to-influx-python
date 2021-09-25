@@ -2,6 +2,7 @@
 import datetime
 import yaml
 import dataclasses
+import time
 from influxdb import InfluxDBClient
 from influxdb import SeriesHelper
 import os
@@ -179,9 +180,6 @@ def fetch_config_from_disk() -> str:
         ) from e
 
 
-DeviceList = Config.from_dict(load_config()).devices
-influxdb_cfg = Config.from_dict(load_config()).influxdb
-
 # To convert readings in MBits
 _TO_MBIT = math.pow(10, 6)
 
@@ -231,6 +229,7 @@ _OIDS = {
 
 
 def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
+    influxdb_cfg = Config.from_dict(load_config()).influxdb
     interfaces = dict()
     for interface in session.walk(f"{_ifXEntry}.{_ifName}"):
         interfaces[interface.value] = {
@@ -288,6 +287,15 @@ def StartPoll(device):
     else:
         return "Invalid device entity"
 
+def main():
+    """Starts the periodic scraper .
+    """
+    DeviceList = Config.from_dict(load_config()).devices
+    
+    while True:
+        for device in DeviceList.devices:
+            StartPoll(device)
+        time.sleep(60)
 
-for device in DeviceList.devices:
-    StartPoll(device)
+if __name__ == "__main__":
+    main()

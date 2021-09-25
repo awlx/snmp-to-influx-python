@@ -3,4 +3,3 @@ requests==2.22.0
 PyYAML==5.4.1
 easysnmp
 influxdb
-math
