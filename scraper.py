@@ -5,6 +5,7 @@ import dataclasses
 import requests
 import os
 import sys
+import math
 from multiprocessing import Pool
 from functools import lru_cache
 from easysnmp import Session
@@ -179,7 +180,7 @@ DeviceList = Config.from_dict(load_config()).devices
 influxdb_cfg = Config.from_dict(load_config()).influxdb
 
 # To convert readings in MBits
-factor = 1000000
+_TO_MBIT = math.pow(10, 6)
 
 
 def SNMPpollv2(Device):
@@ -207,44 +208,52 @@ def SNMPpollv3(Device):
         return "ERROR - SNMPv3 error"
 
 
-def pollDevice(session, hostname):
-    outDict = {}
-    inDict = {}
-    inErrDict = {}
-    outErrDict = {}
-    nameDict = {}
-    IFstats = {}
-    hostData = {"Host": hostname}
+_ifXEntry = "1.3.6.1.2.1.31.1.1.1"
+_ifHCInOctets = "6"
+_ifName = "10"
+
+_ifTable = "1.3.6.1.2.1.2.2.1"
+_ifInErrors = "14"
+_ifOutErrors = "20"
+_ifDescr = "2"
+
+_OIDS = [
+    f"{_ifXEntry}.{_ifHCInOctets}",
+    f"{_ifTable}.{_ifInErrors}",
+    f"{_ifTable}.{_ifOutErrors}",
+    f"{_ifTable}.{_ifDescr}",
+]
+
+
+def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
+    outDict = dict()
+    inDict = dict()
+    inErrDict = dict()
+    outErrDict = dict()
+    nameDict = dict()
+    IFstats = dict()
+    hostData = dict(Host=hostname)
     try:
-        for item in session.walk(oids="1.3.6.1.2.1.31.1.1.1.10"):
+        for item in session.walk(oids=f"{_ifXEntry}.{_ifName}"):
             outDict[item.oid_index] = {"Out": item.value}
     except:
         return {"Host": hostname, "Error": "ERROR - SNMP error"}
 
-    for item in session.walk(oids="1.3.6.1.2.1.31.1.1.1.6"):
-        inDict[item.oid_index] = {"In": item.value}
+    for oid in _OIDS:
+        inDict.update({item.oid_index: item.value} for item in session.walk(oids=oid))
 
-    for item in session.walk(oids="1.3.6.1.2.1.2.2.1.14"):
-        inErrDict[item.oid_index] = {"inError": item.value}
-
-    for item in session.walk(oids="1.3.6.1.2.1.2.2.1.20"):
-        outErrDict[item.oid_index] = {"outError": item.value}
-
-    for item in session.walk(oids="1.3.6.1.2.1.2.2.1.2"):
-        nameDict[item.oid_index] = {"Interface": item.value}
-
-    for index in outDict.keys():
-        IFName = nameDict[index].get("Interface")
-        IFOut = int(outDict[index].get("Out")) / factor
-        IFIn = int(inDict[index].get("In")) / factor
-        IFinErr = int(inErrDict[index].get("inError")) / factor
-        IFoutErr = int(outErrDict[index].get("outError")) / factor
-        IFstats[IFName] = {
-            "IFOut": IFOut,
-            "IFIn": IFIn,
-            "IFinError": IFinErr,
-            "IFoutError": IFoutErr,
-        }
+    for index, value in outDict.items():
+        IFName = value.get("Interface")
+        IFOut = int(value.get("Out")) / _TO_MBIT
+        IFIn = int(value.get("In")) / _TO_MBIT
+        IFinErr = int(value.get("inError")) / _TO_MBIT
+        IFoutErr = int(value.get("outError")) / _TO_MBIT
+        IFstats[IFName] = dict(
+            IFOut=IFOut,
+            IFIn=IFIn,
+            IFinError=IFinErr,
+            IFoutError=IFoutErr,
+        )
 
     hostData["IFstats"] = IFstats
     DeviceIP = hostData["Host"]
@@ -257,14 +266,11 @@ def pollDevice(session, hostname):
             hostData["IFstats"][iface]["IFoutError"],
         )
         iface = iface.split(" ")[-1]
-        print(
-            "{};{};{};{};{};{};{}".format(
-                TimeStamp, DeviceIP, iface, IFOut, IFIn, IFinError, IFoutError
-            )
-        )
+        print(f"{TimeStamp};{DeviceIP};{iface};{IFOut};{IFIn};{IFinError};{IFoutError}")
         # my_poll_data is measurement, hostname and ifname are tags
-        dbpayload = "my_poll_data,hostname={},ifname={} ifout={},ifin={},ifinerr={},ifouterr={}".format(
-            DeviceIP, iface, IFOut, IFIn, IFinError, IFoutError
+        dbpayload = (
+            f"my_poll_data,hostname={DeviceIP},ifname={iface} ifout={IFOut},ifin={IFIn},"
+            "ifinerr={IFinError},ifouterr={IFoutError}"
         )
         dbres = requests.post(
             influxdb_cfg.uri,
