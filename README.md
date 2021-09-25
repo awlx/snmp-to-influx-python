@@ -16,6 +16,7 @@ Example Dashboard
 <img width="1324" alt="Screenshot 2021-09-25 at 18 13 19" src="https://user-images.githubusercontent.com/6527744/134778264-cd808d63-4e8e-4366-bf01-e74f30d3a907.png">
 
 Disk usage after install
+
 <img width="511" alt="Screenshot 2021-09-25 at 18 36 00" src="https://user-images.githubusercontent.com/6527744/134778982-34540844-eee3-44d6-b319-587bcf8c8baa.png">
 
 ### Config
