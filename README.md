@@ -1,1 +1,37 @@
 # snmp-to-influx-python
+
+This scrapes all possible interfaces for a device and sends the data to the configured InfluxDB.
+
+The idea was born, because Telegraf Docker container was too big to run on a Mikrotik CCR2004-1G-12S+2XS (it has only 128mb flash). Also the approach is to be able to cut off inbound internet access to the Mikrotik completely and just send metrics via HTTPS to InFluxDb.
+
+Also the idea is to scrape multiple devices from the Mikrotik and just all this data without the need to install the container on every device.
+
+Container size
+```
+REPOSITORY                           TAG               IMAGE ID       CREATED             SIZE
+scraper                              latest            2861ced8e846   About an hour ago   55.8MB
+```
+
+Example Dashboard
+<img width="1324" alt="Screenshot 2021-09-25 at 18 13 19" src="https://user-images.githubusercontent.com/6527744/134778264-cd808d63-4e8e-4366-bf01-e74f30d3a907.png">
+
+### Config
+
+```
+default_community: public
+devices:
+  - hostname: testhost01
+    ip: 127.0.0.1
+    community: public
+    username:
+    password:
+influxdb:
+  uri: testinflux
+  username: testuser
+  password: testpw
+  database: nicedb
+```
+
+References:
+- [Running Containers on RouterOS](https://forum.mikrotik.com/viewtopic.php?f=1&t=178342)
+- [Dashboard](https://stats.ffmuc.net/d/V1sioJN7k/mikrotik-monitoring?orgId=1)
