@@ -4,7 +4,7 @@ This scrapes all possible interfaces for a device and sends the data to the conf
 
 The idea was born, because Telegraf Docker container was too big to run on a Mikrotik CCR2004-1G-12S+2XS (it has only 128mb flash). Also the approach is to be able to cut off inbound internet access to the Mikrotik completely and just send metrics via HTTPS to InFluxDb.
 
-Also the idea is to scrape multiple devices from the Mikrotik and just all this data without the need to install the container on every device.
+Also the idea is to scrape multiple devices from the Mikrotik and just upload all this data without the need to install the container on every device.
 
 Container size
 ```
