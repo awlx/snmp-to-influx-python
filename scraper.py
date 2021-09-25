@@ -249,8 +249,8 @@ def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
                 },
                 "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "fields": {
-                    "ifout": int(values["_ifHCInOctets"]),
-                    "ifin": int(values["_ifHCOutOctets"]),
+                    "ifin": int(values["_ifHCInOctets"]),
+                    "ifout": int(values["_ifHCOutOctets"]),
                     "ifinerr": int(values["_ifInErrors"]),
                     "ifouterr": int(values["_ifOutErrors"]),
                 },
