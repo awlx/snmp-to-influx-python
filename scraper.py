@@ -277,7 +277,7 @@ def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
         except Exception as e:
             print(e)
 
-    return client.write_points(dbpayload)
+    return 0
 
 
 def StartPoll(device):

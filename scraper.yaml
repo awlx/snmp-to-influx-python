@@ -8,4 +8,5 @@ devices:
 influxdb:
   uri: testinflux
   username: testuser
-  password: tollespw
+  password: testpw
+  database: nicedb
