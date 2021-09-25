@@ -8,7 +8,7 @@ from influxdb import SeriesHelper
 import os
 import sys
 import math
-from multiprocessing import Pool
+import threading
 from functools import lru_cache
 from easysnmp import Session
 from requests.auth import HTTPDigestAuth
@@ -294,7 +294,8 @@ def main():
     
     while True:
         for device in DeviceList.devices:
-            StartPoll(device)
+            thread = threading.Thread(target=StartPoll, args=(device,))
+            thread.start()
         time.sleep(60)
 
 if __name__ == "__main__":
