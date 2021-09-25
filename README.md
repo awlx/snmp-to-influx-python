@@ -32,6 +32,20 @@ influxdb:
   database: nicedb
 ```
 
+### RouterOS Setup
+
+Requirements:
+- Working container package and veth pairs on the Mikrotik device
+- You uploaded the snmp.tar to the rootfs
+- You created a directory `config` on part0 and added a `scraper.yaml`
+
+```
+/container/mounts/add name=scraper src=config dst=/config
+/container/envs/add list=snmp name=SNMP_TO_INFLUX_CONFIG_FILE value=/config/scraper.yaml
+/container/add file=snmp.tar interface=veth1 root-dir=snmp mounts=scraper logging=yes envlist=snmp
+/container/start <insert_container_number_here>
+```
+
 ### Downloads
 
 All pre-build containers can be downloaded [here](https://github.com/awlx/snmp-to-influx-python/pkgs/container/snmp-to-influx-python)
