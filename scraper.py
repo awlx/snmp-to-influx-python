@@ -204,81 +204,54 @@ def SNMPpollv3(Device):
             privacy_password=Device.password,
         )
         return pollDevice(session, hostname)
-    except:
-        return "ERROR - SNMPv3 error"
+    except Exception as e:
+        return "ERROR - SNMPv3 error" + str(e)
 
 
 _ifXEntry = "1.3.6.1.2.1.31.1.1.1"
 _ifHCInOctets = "6"
-_ifName = "10"
+_ifHCOutOctets = "7"
+_ifName = "1"
 
 _ifTable = "1.3.6.1.2.1.2.2.1"
 _ifInErrors = "14"
 _ifOutErrors = "20"
 _ifDescr = "2"
 
-_OIDS = [
-    f"{_ifXEntry}.{_ifHCInOctets}",
-    f"{_ifTable}.{_ifInErrors}",
-    f"{_ifTable}.{_ifOutErrors}",
-    f"{_ifTable}.{_ifDescr}",
-]
+_OIDS = {
+    "_ifHCInOctets": f"{_ifXEntry}.{_ifHCInOctets}",
+    "_ifHCOutOctets": f"{_ifXEntry}.{_ifHCOutOctets}",
+    "_ifInErrors": f"{_ifTable}.{_ifInErrors}",
+    "_ifOutErrors": f"{_ifTable}.{_ifOutErrors}",
+    "_ifDescr": f"{_ifTable}.{_ifDescr}",
+}
 
 
 def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
-    outDict = dict()
-    inDict = dict()
-    inErrDict = dict()
-    outErrDict = dict()
-    nameDict = dict()
-    IFstats = dict()
-    hostData = dict(Host=hostname)
-    try:
-        for item in session.walk(oids=f"{_ifXEntry}.{_ifName}"):
-            outDict[item.oid_index] = {"Out": item.value}
-    except:
-        return {"Host": hostname, "Error": "ERROR - SNMP error"}
+    interfaces = dict()
+    for interface in session.walk(f"{_ifXEntry}.{_ifName}"):
+        interfaces[interface.value] = {
+            "oid_index": interface.oid_index
+            if interface.oid_index
+            else interface.oid.split(".")[-1]
+        }
+    for oid_name, oid in _OIDS.items():
+        for name, _ in interfaces.items():
+            snmp_info = session.get(f"{oid}.{interfaces[name]['oid_index']}")
+            interfaces[name].update({oid_name: snmp_info.value})
 
-    for oid in _OIDS:
-        inDict.update({item.oid_index: item.value} for item in session.walk(oids=oid))
-
-    for index, value in outDict.items():
-        IFName = value.get("Interface")
-        IFOut = int(value.get("Out")) / _TO_MBIT
-        IFIn = int(value.get("In")) / _TO_MBIT
-        IFinErr = int(value.get("inError")) / _TO_MBIT
-        IFoutErr = int(value.get("outError")) / _TO_MBIT
-        IFstats[IFName] = dict(
-            IFOut=IFOut,
-            IFIn=IFIn,
-            IFinError=IFinErr,
-            IFoutError=IFoutErr,
-        )
-
-    hostData["IFstats"] = IFstats
-    DeviceIP = hostData["Host"]
-    TimeStamp = datetime.datetime.now().isoformat()
-    for iface in hostData["IFstats"].keys():
-        IFOut, IFIn, IFinError, IFoutError = (
-            hostData["IFstats"][iface]["IFOut"],
-            hostData["IFstats"][iface]["IFIn"],
-            hostData["IFstats"][iface]["IFinError"],
-            hostData["IFstats"][iface]["IFoutError"],
-        )
-        iface = iface.split(" ")[-1]
-        print(f"{TimeStamp};{DeviceIP};{iface};{IFOut};{IFIn};{IFinError};{IFoutError}")
-        # my_poll_data is measurement, hostname and ifname are tags
-        dbpayload = (
-            f"my_poll_data,hostname={DeviceIP},ifname={iface} ifout={IFOut},ifin={IFIn},"
-            "ifinerr={IFinError},ifouterr={IFoutError}"
-        )
-        dbres = requests.post(
-            influxdb_cfg.uri,
-            data=dbpayload,
-            auth=HTTPBasicAuth(influxdb_cfg.username, influxdb_cfg.password),
-        )
-
-    return hostData
+    dbpayload = (
+        f"my_poll_data,hostname={DeviceIP},ifname={iface} ifout={IFOut},ifin={IFIn},"
+        "ifinerr={IFinError},ifouterr={IFoutError}"
+    )
+    print(dbpayload)
+    dbres = requests.post(
+        influxdb_cfg.uri,
+        data=dbpayload,
+        auth=HTTPBasicAuth(influxdb_cfg.username, influxdb_cfg.password),
+    )
+    print(dbres)
+    return 0
 
 
 def StartPoll(device):
