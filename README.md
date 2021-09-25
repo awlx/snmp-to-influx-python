@@ -32,6 +32,10 @@ influxdb:
   database: nicedb
 ```
 
+### Downloads
+
+All pre-build containers can be downloaded [here](https://github.com/awlx/snmp-to-influx-python/pkgs/container/snmp-to-influx-python)
+
 References:
 - [Running Containers on RouterOS](https://forum.mikrotik.com/viewtopic.php?f=1&t=178342)
 - [Dashboard](https://stats.ffmuc.net/d/V1sioJN7k/mikrotik-monitoring?orgId=1)
