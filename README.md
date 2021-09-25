@@ -52,6 +52,15 @@ Requirements:
 /container/start <insert_container_number_here>
 ```
 
+When everything works you should see an output like this
+```
+[admin@MikroTik] > /container/print 
+ 0 file=snmp.tar name="a1f6ef78-bdcb-4fc8-8bc4-4eac98743ff0" tag="scraper:latest" os="linux" arch="arm64" interface=veth1 envlist="snmp" root-dir=snmp mounts=scraper dns="" logging=yes status=running 
+[admin@MikroTik] >
+```
+
+Logs can be found in `/log/print`
+
 ### Downloads
 
 All pre-build containers can be downloaded [here](https://github.com/awlx/snmp-to-influx-python/pkgs/container/snmp-to-influx-python)
