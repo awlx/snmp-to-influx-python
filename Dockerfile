@@ -13,6 +13,8 @@ FROM alpine:latest
 
 COPY --from=builder /scraper.dist /scraper.dist
 
-RUN chmod 0755 /scraper.dist/scraper
+RUN chmod g+rwX /scraper.dist/scraper
+
+USER 1001
 
 ENTRYPOINT ["/scraper.dist/scraper"]
