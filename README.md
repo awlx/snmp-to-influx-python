@@ -34,9 +34,15 @@ influxdb:
 
 ### RouterOS Setup
 
+Select and export a corresponding docker image like this:
+```
+docker pull ghcr.io/awlx/snmp-to-influx-python:latest@sha256:f225b522613270f6b36fb22683e78ff466c47f5c052aa911b933f583b602ab51
+docker save snmp-to-influx-python:latest > snmp.tar 
+```
+
 Requirements:
 - Working container package and veth pairs on the Mikrotik device
-- You uploaded the snmp.tar to the rootfs
+- You uploaded the snmp.tar to the rootfs 
 - You created a directory `config` on part0 and added a `scraper.yaml`
 
 ```
