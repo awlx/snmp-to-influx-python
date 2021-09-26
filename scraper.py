@@ -5,8 +5,9 @@ import os
 import sys
 import threading
 import time
+import requests
 
-from ipaddress import IPv4Network, IPv6Network
+from ipaddress import IPv4Address, IPv6Address, ip_address
 from functools import lru_cache
 from typing import Dict, Union, Any, List, Optional
 from easysnmp import Session
@@ -23,8 +24,11 @@ class ConfigFileNotFoundError(Error):
     """File could not be found on disk."""
 
 
+requests.packages.urllib3.disable_warnings()
+
 SNMP_TO_INFLUX_CONFIG_OS_ENV = "SNMP_TO_INFLUX_CONFIG_FILE"
 SNMP_TO_INFLUX_CONFIG_DEFAULT_LOCATION = "./scraper.yaml"
+_POLLING_FREQUENCY = datetime.timedelta(seconds=60)
 
 
 @dataclasses.dataclass
@@ -38,7 +42,7 @@ class Device:
 
     hostname: str
     community: str
-    ip: Union[IPv4Network, IPv6Network]
+    ip: Union[IPv4Address, IPv6Address]
     username: str
     password: str
 
@@ -49,7 +53,7 @@ class Device:
             community=device_cfg["community"],
             username=device_cfg["username"],
             password=device_cfg["password"],
-            ip=device_cfg["ip"],
+            ip=ip_address(device_cfg["ip"]),
         )
 
 
@@ -179,29 +183,33 @@ def fetch_config_from_disk() -> str:
         ) from e
 
 
-def SNMPpollv2(Device):
-    try:
-        session = Session(hostname=Device.ip, community=Device.community, version=2)
-        return pollDevice(session, Device.hostname)
-    except Exception as e:
-        return "ERROR - SNMPv2 error" + str(e)
-
-
-def SNMPpollv3(Device):
+def SNMPpollv2(device_cfg: Device) -> bool:
+    """Polls a device via SNMPv2."""
     try:
         session = Session(
-            hostname=Device.ip,
+            hostname=str(device_cfg.ip), community=device_cfg.community, version=2
+        )
+        return pollDevice(session, device_cfg.hostname)
+    except Exception as e:
+        raise ValueError("ERROR - SNMPv2 error" + str(e)) from e
+
+
+def SNMPpollv3(device_cfg: Device) -> bool:
+    """Polls a device via SNMPv3."""
+    try:
+        session = Session(
+            hostname=str(device_cfg.ip),
             version=3,
             security_level="auth_with_privacy",
-            security_username=Device.username,
+            security_username=device_cfg.username,
             auth_protocol="SHA",
-            auth_password=Device.password,
+            auth_password=device_cfg.password,
             privacy_protocol="AES",
-            privacy_password=Device.password,
+            privacy_password=device_cfg.password,
         )
         return pollDevice(session, hostname)
     except Exception as e:
-        return "ERROR - SNMPv3 error" + str(e)
+        raise ValueError("ERROR - SNMPv3 error" + str(e)) from e
 
 
 _ifXEntry = "1.3.6.1.2.1.31.1.1.1"
@@ -223,8 +231,8 @@ _OIDS = {
 }
 
 
-def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
-    influxdb_cfg = Config.from_dict(load_config()).influxdb
+def pollDevice(session: Session, hostname: str) -> bool:
+
     interfaces = dict()
     for interface in session.walk(f"{_ifXEntry}.{_ifName}"):
         interfaces[interface.value] = {
@@ -256,42 +264,49 @@ def pollDevice(session: Session, hostname: str) -> Dict[str, str]:
                 },
             }
         ]
-
-        client = InfluxDBClient(
-            influxdb_cfg.uri,
-            443,
-            influxdb_cfg.username,
-            influxdb_cfg.password,
-            influxdb_cfg.database,
-            ssl=True,
-        )
-        print(dbpayload)
-        try:
-            client.write_points(dbpayload)
-        except Exception as e:
-            print(e)
-
-    return 0
+        return upload_to_influx(dbpayload)
 
 
-def StartPoll(device):
+def upload_to_influx(payload: Any) -> bool:
+    """Uploads a payload to influxDB."""
+    influxdb_cfg = Config.from_dict(load_config()).influxdb
+    client = InfluxDBClient(
+        influxdb_cfg.uri,
+        443,
+        influxdb_cfg.username,
+        influxdb_cfg.password,
+        influxdb_cfg.database,
+        ssl=True,
+    )
+    print(payload)
+    try:
+        client.write_points(payload)
+        return True
+    except InfluxDBClientError as e:
+        print(e)
+        return False
+
+
+def StartPoll(device: Config) -> Dict[str, str]:
+    """Polls a device via SNMPv2 or SNMPV3 depending on configuration."""
     if device.username:
         return SNMPpollv3(device)
-    elif device.community:
+    if device.community:
         return SNMPpollv2(device)
-    else:
-        return "Invalid device entity"
+    raise ValueError(f"Invalid device configuration: {device}")
 
 
 def main():
-    """Starts the periodic scraper ."""
+    """Starts the periodic scraper."""
     DeviceList = Config.from_dict(load_config()).devices
 
     while True:
-        for device in DeviceList.devices:
-            thread = threading.Thread(target=StartPoll, args=(device,))
-            thread.start()
-        time.sleep(60)
+        polling_threads = [
+            threading.Thread(target=StartPoll, args=(device,))
+            for device in DeviceList.devices
+        ]
+        _ = [thread.start() for thread in polling_threads]
+        time.sleep(_POLLING_FREQUENCY.total_seconds())
 
 
 if __name__ == "__main__":
