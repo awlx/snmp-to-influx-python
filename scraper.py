@@ -264,7 +264,7 @@ def pollExtraOIDs(session: Session, hostname: str, extra_oids: List[str]) -> boo
                     "host": hostname,
                     "oid": oid_name,
                 },
-                "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "time": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "fields": {
                 },
             }
@@ -300,7 +300,7 @@ def pollDevice(session: Session, hostname: str) -> bool:
                     "interface": name,
                     "interface_description": values["_ifDescr"],
                 },
-                "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "time": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "fields": {
                     "ifin": int(values["_ifHCInOctets"]),
                     "ifout": int(values["_ifHCOutOctets"]),
