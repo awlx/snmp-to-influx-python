@@ -12,6 +12,8 @@ from functools import lru_cache
 from typing import Dict, Union, Any, List, Optional
 from easysnmp import Session
 from influxdb import InfluxDBClient
+from influxdb.exceptions import InfluxDBClientError
+
 
 import yaml
 
@@ -45,6 +47,7 @@ class Device:
     ip: Union[IPv4Address, IPv6Address]
     username: str
     password: str
+    extra_oids: List[str]
 
     @classmethod
     def from_dict(cls, device_cfg: Dict[str, str]) -> "Device":
@@ -54,6 +57,7 @@ class Device:
             username=device_cfg["username"],
             password=device_cfg["password"],
             ip=ip_address(device_cfg["ip"]),
+            extra_oids=device_cfg["extra_oids"],
         )
 
 
@@ -133,6 +137,13 @@ class Config:
             influxdb=influxdb_cfg,
         )
 
+def is_integer(n):
+    try:
+        float(n)
+    except ValueError:
+        return False
+    else:
+        return float(n).is_integer()
 
 @lru_cache(maxsize=10)
 def fetch_from_config(key: str) -> Optional[Union[Dict[str, Any], List[str]]]:
@@ -182,6 +193,12 @@ def fetch_config_from_disk() -> str:
             f"Could not locate configuration file in {config_file}"
         ) from e
 
+def extraOIDs(session: Session, device_cfg: Device) -> bool:
+    try:
+        return(pollExtraOIDs(session, device_cfg.hostname, device_cfg.extra_oids))
+    except Exception as e:
+        return False
+
 
 def SNMPpollv2(device_cfg: Device) -> bool:
     """Polls a device via SNMPv2."""
@@ -189,6 +206,8 @@ def SNMPpollv2(device_cfg: Device) -> bool:
         session = Session(
             hostname=str(device_cfg.ip), community=device_cfg.community, version=2
         )
+        if device_cfg.extra_oids:
+            extraOIDs(session, device_cfg)
         return pollDevice(session, device_cfg.hostname)
     except Exception as e:
         raise ValueError("ERROR - SNMPv2 error" + str(e)) from e
@@ -207,7 +226,7 @@ def SNMPpollv3(device_cfg: Device) -> bool:
             privacy_protocol="AES",
             privacy_password=device_cfg.password,
         )
-        return pollDevice(session, hostname)
+        return pollDevice(session, device_cfg.hostname)
     except Exception as e:
         raise ValueError("ERROR - SNMPv3 error" + str(e)) from e
 
@@ -230,6 +249,26 @@ _OIDS = {
     "_ifDescr": f"{_ifTable}.{_ifDescr}",
 }
 
+def pollExtraOIDs(session: Session, hostname: str, extra_oids: List[str]) -> bool:
+    output = dict()
+    for oid in extra_oids:
+        output[oid] = session.walk(oid)
+    for oid_name,oid_output in output.items():
+        dbpayload = [
+            {
+                "measurement": "extra_oids",
+                "tags": {
+                    "host": hostname,
+                    "oid": oid_name,
+                },
+                "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "fields": {
+                },
+            }
+        ]
+        for output in oid_output:
+            dbpayload[0]["fields"][output.oid] = (int(output.value) if is_integer(output.value) else 0)
+    return upload_to_influx(dbpayload)
 
 def pollDevice(session: Session, hostname: str) -> bool:
 
@@ -245,7 +284,6 @@ def pollDevice(session: Session, hostname: str) -> bool:
         for name, _ in interfaces.items():
             snmp_info = session.get(f"{oid}.{interfaces[name]['oid_index']}")
             interfaces[name].update({oid_name: snmp_info.value})
-
     for name, values in interfaces.items():
         dbpayload = [
             {
@@ -264,7 +302,11 @@ def pollDevice(session: Session, hostname: str) -> bool:
                 },
             }
         ]
-        return upload_to_influx(dbpayload)
+        try:
+            upload_to_influx(dbpayload)
+        except:
+            return False
+    return True
 
 
 def upload_to_influx(payload: Any) -> bool:

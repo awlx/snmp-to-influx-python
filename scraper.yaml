@@ -5,6 +5,8 @@ devices:
     community: public
     username:
     password:
+    extra_oids:
+      - 1.1.1.1.11
 influxdb:
   uri: testinflux
   username: testuser
