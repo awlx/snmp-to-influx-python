@@ -51,13 +51,16 @@ class Device:
 
     @classmethod
     def from_dict(cls, device_cfg: Dict[str, str]) -> "Device":
+        oids = []
+        for entry in device_cfg["extra_oids"]:
+            oids.append(entry)
         return cls(
             hostname=device_cfg["hostname"],
             community=device_cfg["community"],
             username=device_cfg["username"],
             password=device_cfg["password"],
             ip=ip_address(device_cfg["ip"]),
-            extra_oids=device_cfg["extra_oids"],
+            extra_oids=oids,
         )
 
 
@@ -268,7 +271,11 @@ def pollExtraOIDs(session: Session, hostname: str, extra_oids: List[str]) -> boo
         ]
         for output in oid_output:
             dbpayload[0]["fields"][output.oid] = (int(output.value) if is_integer(output.value) else 0)
-    return upload_to_influx(dbpayload)
+        try:
+            upload_to_influx(dbpayload)
+        except:
+            return False
+    return True
 
 def pollDevice(session: Session, hostname: str) -> bool:
 
