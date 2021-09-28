@@ -12,6 +12,8 @@ from functools import lru_cache
 from typing import Dict, Union, Any, List, Optional
 from easysnmp import Session
 from influxdb import InfluxDBClient
+from influxdb.exceptions import InfluxDBClientError
+
 
 import yaml
 
@@ -45,6 +47,7 @@ class Device:
     ip: Union[IPv4Address, IPv6Address]
     username: str
     password: str
+    extra_oids: List[str]
 
     @classmethod
     def from_dict(cls, device_cfg: Dict[str, str]) -> "Device":
@@ -54,6 +57,7 @@ class Device:
             username=device_cfg["username"],
             password=device_cfg["password"],
             ip=ip_address(device_cfg["ip"]),
+            extra_oids=device_cfg["extra_oids"],
         )
 
 
@@ -133,6 +137,13 @@ class Config:
             influxdb=influxdb_cfg,
         )
 
+def is_integer(n):
+    try:
+        float(n)
+    except ValueError:
+        return False
+    else:
+        return float(n).is_integer()
 
 @lru_cache(maxsize=10)
 def fetch_from_config(key: str) -> Optional[Union[Dict[str, Any], List[str]]]:
@@ -189,6 +200,8 @@ def SNMPpollv2(device_cfg: Device) -> bool:
         session = Session(
             hostname=str(device_cfg.ip), community=device_cfg.community, version=2
         )
+        if device_cfg.extra_oids:
+            pollExtraOIDs(session, device_cfg.hostname, device_cfg.extra_oids)
         return pollDevice(session, device_cfg.hostname)
     except Exception as e:
         raise ValueError("ERROR - SNMPv2 error" + str(e)) from e
@@ -230,6 +243,26 @@ _OIDS = {
     "_ifDescr": f"{_ifTable}.{_ifDescr}",
 }
 
+def pollExtraOIDs(session: Session, hostname: str, extra_oids: List[str]) -> bool:
+    output = dict()
+    for oid in extra_oids:
+        output[oid] = session.walk(oid)
+    for oid_name,oid_output in output.items():
+        dbpayload = [
+            {
+                "measurement": "extra_oids",
+                "tags": {
+                    "host": hostname,
+                    "oid": oid_name,
+                },
+                "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "fields": {
+                },
+            }
+        ]
+        for output in oid_output:
+            dbpayload[0]["fields"][output.oid] = (int(output.value) if is_integer(output.value) else output.value)
+    return upload_to_influx(dbpayload)
 
 def pollDevice(session: Session, hostname: str) -> bool:
 
@@ -240,7 +273,7 @@ def pollDevice(session: Session, hostname: str) -> bool:
             if interface.oid_index
             else interface.oid.split(".")[-1]
         }
-
+    
     for oid_name, oid in _OIDS.items():
         for name, _ in interfaces.items():
             snmp_info = session.get(f"{oid}.{interfaces[name]['oid_index']}")
