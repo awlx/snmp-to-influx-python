@@ -193,6 +193,12 @@ def fetch_config_from_disk() -> str:
             f"Could not locate configuration file in {config_file}"
         ) from e
 
+def extraOIDs(session: Session, device_cfg: Device) -> bool:
+    try:
+        return(pollExtraOIDs(session, device_cfg.hostname, device_cfg.extra_oids))
+    except Exception as e:
+        return False
+
 
 def SNMPpollv2(device_cfg: Device) -> bool:
     """Polls a device via SNMPv2."""
@@ -201,7 +207,7 @@ def SNMPpollv2(device_cfg: Device) -> bool:
             hostname=str(device_cfg.ip), community=device_cfg.community, version=2
         )
         if device_cfg.extra_oids:
-            pollExtraOIDs(session, device_cfg.hostname, device_cfg.extra_oids)
+            extraOIDs(session, device_cfg)
         return pollDevice(session, device_cfg.hostname)
     except Exception as e:
         raise ValueError("ERROR - SNMPv2 error" + str(e)) from e
@@ -220,7 +226,7 @@ def SNMPpollv3(device_cfg: Device) -> bool:
             privacy_protocol="AES",
             privacy_password=device_cfg.password,
         )
-        return pollDevice(session, hostname)
+        return pollDevice(session, device_cfg.hostname)
     except Exception as e:
         raise ValueError("ERROR - SNMPv3 error" + str(e)) from e
 
@@ -261,7 +267,7 @@ def pollExtraOIDs(session: Session, hostname: str, extra_oids: List[str]) -> boo
             }
         ]
         for output in oid_output:
-            dbpayload[0]["fields"][output.oid] = (int(output.value) if is_integer(output.value) else output.value)
+            dbpayload[0]["fields"][output.oid] = (int(output.value) if is_integer(output.value) else 0)
     return upload_to_influx(dbpayload)
 
 def pollDevice(session: Session, hostname: str) -> bool:
@@ -273,12 +279,11 @@ def pollDevice(session: Session, hostname: str) -> bool:
             if interface.oid_index
             else interface.oid.split(".")[-1]
         }
-    
+
     for oid_name, oid in _OIDS.items():
         for name, _ in interfaces.items():
             snmp_info = session.get(f"{oid}.{interfaces[name]['oid_index']}")
             interfaces[name].update({oid_name: snmp_info.value})
-
     for name, values in interfaces.items():
         dbpayload = [
             {
@@ -297,7 +302,11 @@ def pollDevice(session: Session, hostname: str) -> bool:
                 },
             }
         ]
-        return upload_to_influx(dbpayload)
+        try:
+            upload_to_influx(dbpayload)
+        except:
+            return False
+    return True
 
 
 def upload_to_influx(payload: Any) -> bool:
