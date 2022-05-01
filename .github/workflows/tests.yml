@@ -35,7 +35,7 @@ jobs: # Docs: <https://git.io/JvxXE>
         run: pip install black flake8
 
       - name: Run linters
-        uses: wearerequired/lint-action@v1
+        uses: wearerequired/lint-action@v2
         with:
           black: true
           flake8: true
