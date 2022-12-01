@@ -1,4 +1,4 @@
-FROM python:3.9-alpine3.14 as builder
+FROM python:3.10-alpine3.14 as builder
 
 COPY requirements.txt /requirements.txt
 COPY scraper.py /scraper.py
